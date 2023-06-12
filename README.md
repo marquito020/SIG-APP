@@ -45,10 +45,6 @@ Si deseas contribuir a este proyecto, sigue estos pasos:
 3. Realiza tus cambios y realiza un commit con un mensaje descriptivo.
 4. Envía un pull request explicando los cambios realizados y su propósito.
 
-## Contacto
-
-Si tienes alguna pregunta o sugerencia relacionada con este proyecto, no dudes en contactarnos a través de la siguiente dirección de correo electrónico: [tu_correo_electronico@example.com](mailto:tu_correo_electronico@example.com)
-
 ## Licencia
 
 Este proyecto se encuentra bajo la licencia [MIT](https://opensource.org/licenses/MIT). Puedes obtener más información consultando el archivo [LICENSE](LICENSE) del proyecto.
