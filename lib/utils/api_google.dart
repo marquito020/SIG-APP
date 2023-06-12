@@ -1,0 +1,1 @@
+const apiGoogle = "AIzaSyB7NyPjOpe124gfoeWrg_8Knwv-rcvslT8";
