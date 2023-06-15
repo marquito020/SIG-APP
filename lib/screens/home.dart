@@ -2,133 +2,19 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
-import 'package:sig_grupL/components/google_maps.dart';
-import 'package:sig_grupL/controllers/apiController.dart';
-import 'package:sig_grupL/utils/datosJSON.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_polyline_points/flutter_polyline_points.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:location/location.dart';
-
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:image/image.dart' as img;
+import 'package:location/location.dart';
+import 'package:flutter_polyline_points/flutter_polyline_points.dart';
+import 'package:material_floating_search_bar_2/material_floating_search_bar_2.dart';
+import 'package:sig_grupL/utils/api_google.dart';
 
+import '../components/google_maps.dart';
+import '../controllers/apiController.dart';
 import '../utils/maps_style.dart';
-
-class CustomSearchDelegate extends SearchDelegate<String> {
-  List<String> datosPostgrados = [];
-
-  List<String> getMatchedResults(String query) {
-    return datosPostgrados
-        .where((item) => item.toLowerCase().contains(query.toLowerCase()))
-        .toList();
-  }
-
-  final List<dynamic>? data;
-
-  CustomSearchDelegate({this.data}) {
-    if (data != null) {
-      datosPostgrados =
-          data!.map((item) => item['description'] as String).toList();
-    }
-  }
-
-  @override
-  List<Widget> buildActions(BuildContext context) {
-    return [
-      IconButton(
-        onPressed: () {
-          query = '';
-        },
-        icon: const Icon(Icons.clear),
-      )
-    ];
-  }
-
-  @override
-  Widget buildLeading(BuildContext context) {
-    return IconButton(
-      onPressed: () {
-        Navigator.pop(context);
-      },
-      icon: const Icon(Icons.arrow_back),
-    );
-  }
-
-  @override
-  Widget buildResults(BuildContext context) {
-    final matchQuery = getMatchedResults(query);
-    return Search(
-      allData:
-          datosPostgrados.where((item) => matchQuery.contains(item)).toList(),
-      onItemSelected: (item) {
-        final data = jsonData.firstWhere(
-          (element) => element['description'] == item,
-          orElse: () => {
-            'description': '',
-            'latitude': '0',
-            'longitude': '0',
-          },
-        );
-        final position = LatLng(
-          double.parse(data['latitude'].toString()),
-          double.parse(data['longitude'].toString()),
-        );
-
-        if (kDebugMode) {
-          print(position);
-        }
-
-        close(context, item);
-        final homeState = context.findAncestorStateOfType<_HomeState>();
-        homeState?.addMarker(position);
-      },
-    );
-  }
-
-  @override
-  Widget buildSuggestions(BuildContext context) {
-    final matchQuery = getMatchedResults(query);
-    if (matchQuery.isEmpty) {
-      return const Center(
-        child: CircularProgressIndicator(),
-      );
-    }
-    return Search(
-      allData:
-          datosPostgrados.where((item) => matchQuery.contains(item)).toList(),
-      onItemSelected: (item) {
-        query = item;
-        showResults(context);
-      },
-    );
-  }
-}
-
-class Search extends StatelessWidget {
-  final List<String> allData;
-  final ValueChanged<String> onItemSelected;
-
-  const Search({Key? key, required this.allData, required this.onItemSelected})
-      : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView.builder(
-      itemCount: allData.length,
-      itemBuilder: (context, index) {
-        final item = allData[index];
-        return ListTile(
-          title: Text(item),
-          onTap: () {
-            onItemSelected(item);
-          },
-        );
-      },
-    );
-  }
-}
 
 class Home extends StatefulWidget {
   const Home({Key? key}) : super(key: key);
@@ -185,21 +71,6 @@ class _HomeState extends State<Home> {
       bandera = false;
     }
 
-    if (miUbicacion) {
-      final GoogleMapController controller = await _mapController;
-      controller.animateCamera(
-        CameraUpdate.newCameraPosition(
-          CameraPosition(
-            target: LatLng(
-              currentLocation!.latitude!,
-              currentLocation!.longitude!,
-            ),
-            zoom: 14.5,
-          ),
-        ),
-      );
-    }
-
     if (dosPuntos == false) {
       final ByteData imageData =
           await rootBundle.load('assets/icons/mark_start.png');
@@ -215,7 +86,21 @@ class _HomeState extends State<Home> {
         position: position,
         icon: bitmapDescriptor,
       );
-      mostrarMarcador = false;
+      mostrarMarcador = true;
+      /* if (miUbicacion) {
+        final GoogleMapController controller = await _mapController;
+        controller.animateCamera(
+          CameraUpdate.newCameraPosition(
+            CameraPosition(
+              target: LatLng(
+                currentLocation!.latitude!,
+                currentLocation!.longitude!,
+              ),
+              zoom: 14.5,
+            ),
+          ),
+        );
+      } */
       setState(() {
         markers.add(newMarker);
         if (dosPuntos) createPolylines(position);
@@ -234,7 +119,21 @@ class _HomeState extends State<Home> {
         position: position,
         icon: bitmapDescriptor,
       );
-      mostrarMarcador = false;
+      mostrarMarcador = true;
+      /* if (miUbicacion) {
+        final GoogleMapController controller = await _mapController;
+        controller.animateCamera(
+          CameraUpdate.newCameraPosition(
+            CameraPosition(
+              target: LatLng(
+                currentLocation!.latitude!,
+                currentLocation!.longitude!,
+              ),
+              zoom: 14.5,
+            ),
+          ),
+        );
+      } */
       setState(() {
         markers.add(newMarker);
         if (dosPuntos) createPolylines(position);
@@ -246,7 +145,7 @@ class _HomeState extends State<Home> {
     PolylinePoints polylinePoints = PolylinePoints();
 
     PolylineResult result = await polylinePoints.getRouteBetweenCoordinates(
-      "AIzaSyB7NyPjOpe124gfoeWrg_8Knwv-rcvslT8",
+      apiGoogle,
       PointLatLng(inicioLatitude, inicioLongitude),
       PointLatLng(position.latitude, position.longitude),
     );
@@ -260,21 +159,6 @@ class _HomeState extends State<Home> {
     }
 
     bandera = true;
-
-    if (miUbicacion) {
-      final GoogleMapController controller = await _mapController;
-      controller.animateCamera(
-        CameraUpdate.newCameraPosition(
-          CameraPosition(
-            target: LatLng(
-              currentLocation!.latitude!,
-              currentLocation!.longitude!,
-            ),
-            zoom: 14.5,
-          ),
-        ),
-      );
-    }
 
     setState(() {});
   }
@@ -325,6 +209,51 @@ class _HomeState extends State<Home> {
   }
 
   List<Map<String, Object>> jsonData = [];
+  List<String> datosDescription = [];
+  List<String> datosGroup = [];
+
+  void search(String query) {
+    final matchQuery = getMatchedResults(query);
+    final matchQueryGroup = getMatchedResultsGroup(query);
+    setState(() {
+      datosDescription = matchQuery;
+      datosGroup = matchQueryGroup;
+      if (kDebugMode) {
+        print(datosDescription);
+      }
+      if (kDebugMode) {
+        print(datosGroup);
+      }
+    });
+  }
+
+  List<String> getMatchedResults(String query) {
+    if (query.isEmpty) {
+      return [];
+    }
+
+    return jsonData
+        .map((item) => item['description'] as String)
+        .where((item) => item.toLowerCase().contains(query.toLowerCase()))
+        .toList();
+  }
+
+  List<String> getMatchedResultsGroup(String query) {
+    if (query.isEmpty) {
+      return [];
+    }
+
+    List<String> group = [];
+    for (var i = 0; i < jsonData.length; i++) {
+      String description = jsonData[i]['description'] as String;
+      if (description.toLowerCase().contains(query.toLowerCase())) {
+        group.add(jsonData[i]['group'] as String);
+      }
+    }
+    return group;
+  }
+
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
@@ -333,6 +262,9 @@ class _HomeState extends State<Home> {
     ApiController().leerJSON().then((data) {
       setState(() {
         jsonData = data;
+        datosDescription =
+            jsonData.map((item) => item['description'] as String).toList();
+        datosGroup = jsonData.map((item) => item['group'] as String).toList();
       });
     }).catchError((error) {
       // Manejar el error de lectura del JSON
@@ -344,94 +276,15 @@ class _HomeState extends State<Home> {
   }
 
   @override
+  void dispose() {
+    // Dispose el TextEditingController al finalizar
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Buscar Destino"),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            onPressed: () async {
-              /* En caso de que no carguen o no encuentre los datos */
-              if (jsonData.isEmpty) {
-                return;
-              }
-              final String? selected = await showSearch<String>(
-                context: context,
-                delegate: CustomSearchDelegate(data: jsonData),
-              );
-              if (selected != null) {
-                if (kDebugMode) {
-                  print(jsonData);
-                }
-                final data = jsonData.firstWhere(
-                  (element) => element['description'] == selected,
-                  orElse: () => {
-                    'description': '',
-                    'latitude': '0',
-                    'longitude': '0',
-                  },
-                );
-                final position = LatLng(
-                  double.parse(data['latitude'].toString()),
-                  double.parse(data['longitude'].toString()),
-                );
-                if (markers.isNotEmpty) {
-                  if (kDebugMode) {
-                    print("Hay marcadores");
-                  }
-                  dosPuntos = true;
-                  miUbicacion = false;
-                  description = data['description'].toString();
-                  group = data['group'].toString();
-                  initials = data['initials'].toString();
-                  addMarker(position);
-                  /* ComponentsGoogleMaps().addMarker(
-                      position,
-                      bandera,
-                      miUbicacion,
-                      dosPuntos,
-                      mostrarMarcador,
-                      markers,
-                      currentLocation!,
-                      _mapController,
-                      polylineCoordinates,
-                      inicioLatitude,
-                      inicioLongitude,
-                      totalDistance);
-                  setState(() {
-                    ComponentsGoogleMaps().createPolylines(
-                        position,
-                        inicioLatitude,
-                        inicioLongitude,
-                        polylineCoordinates,
-                        bandera,
-                        miUbicacion,
-                        currentLocation!,
-                        _mapController,
-                        totalDistance);
-                  }); */
-                } else {
-                  AlertDialog(
-                    title: const Text('Error'),
-                    content:
-                        const Text('No se ha seleccionado un punto de inicio.'),
-                    actions: [
-                      TextButton(
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                        },
-                        child: const Text('Aceptar'),
-                      ),
-                    ],
-                  );
-                }
-              }
-            },
-            icon: const Icon(Icons.search),
-          )
-        ],
-      ),
       body: Stack(
         children: [
           if (currentLocation == null)
@@ -449,146 +302,255 @@ class _HomeState extends State<Home> {
                       currentLocation!.longitude!,
                     ),
                     zoom: 14.5),
-                /* _initialPosition, */
                 onMapCreated: (GoogleMapController controller) {
                   _completer.complete(controller);
                 },
-                /* myLocationEnabled: true, */
                 myLocationButtonEnabled: false,
                 zoomControlsEnabled: false,
+                trafficEnabled: false,
+                mapType: MapType.normal,
+                compassEnabled: false,
                 markers: markers,
                 polylines: {
                   Polyline(
                     polylineId: const PolylineId('polyLine'),
-                    color: Colors.red,
+                    color: Colors.blue,
                     points: polylineCoordinates,
                     width: 5,
                   ),
                 },
-                /* onTap: (LatLng position) {
-                if (markers.isEmpty) {
-                  addMarker(position);
-                } else {
-                  removeMarker(markers.first.markerId);
-                }
-              }, */
               ),
             ),
           if (dosPuntos)
             Container(
-                alignment: Alignment.bottomCenter,
-                child: Align(
-                    alignment: Alignment.bottomCenter,
-                    child: Container(
-                      width: double.infinity,
-                      height: 85,
-                      color: Colors.white,
-                      child: Column(
-                        children: [
-                          SizedBox(
-                            child: Text("Distancia: $totalDistance km",
-                                style: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.black)),
-                          ),
-                          SizedBox(
-                            child: Text("Grupo: $group",
-                                style: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.black)),
-                          ),
-                          SizedBox(
-                            child: Text("Iniciales: $initials",
-                                style: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.black)),
-                          ),
-                          SizedBox(
-                            child: Text("Descripcion: $description",
-                                style: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.black)),
-                          ),
-                        ],
-                      ),
-                    ))),
-          if (finMarker == false)
-            Container(
-              margin: const EdgeInsets.only(top: 10),
+              alignment: Alignment.bottomCenter,
               child: Align(
                 alignment: Alignment.bottomCenter,
-                child: Container(
+                child: IntrinsicHeight(
+                  child: Container(
                     width: double.infinity,
-                    height: 60,
-                    decoration: BoxDecoration(
-                      color: Colors.transparent,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: SizedBox(
-                      child: ButtonBar(
-                        alignment: MainAxisAlignment.center,
-                        children: [
-                          /* Marcar Inicio */
-                          ElevatedButton(
-                            onPressed: () {
-                              /* Ventana */
-                              showDialog(
-                                context: context,
-                                builder: (BuildContext context) {
-                                  return AlertDialog(
-                                    title: const Text('Inicio'),
-                                    content: const Text(
-                                        '¿Desea marcar su ubicación actual como inicio?'),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () {
-                                          Navigator.of(context).pop();
-                                        },
-                                        child: const Text('Cancelar'),
-                                      ),
-                                      TextButton(
-                                        onPressed: () {
-                                          Navigator.of(context).pop();
-                                          inicioLatitude =
-                                              currentLocation!.latitude!;
-                                          inicioLongitude = currentLocation!
-                                              .longitude!; //currentLocation!.longitude!;
-                                          mostrarMarcador = true;
-                                          miUbicacion = true;
-                                          bandera = false;
-                                          addMarker(LatLng(
-                                            currentLocation!.latitude!,
-                                            currentLocation!.longitude!,
-                                          ));
-                                          finMarker = true;
-                                        },
-                                        child: const Text('Aceptar'),
-                                      ),
-                                    ],
-                                  );
-                                },
-                              );
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.blue,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                            ),
-                            child: const Text('Inicio desde mi ubicación'),
+                    color: Colors.white,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment
+                          .center, // Centrar los elementos horizontalmente
+                      children: [
+                        Text(
+                          "Distancia: $totalDistance km",
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
                           ),
-                        ],
-                      ),
-                    )),
+                        ),
+                        Text(
+                          "Grupo: $group",
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
+                        ),
+                        Text(
+                          "Iniciales: $initials",
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
+                        ),
+                        Text(
+                          "Descripcion: $description",
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ),
             ),
-          if (mostrarMarcador)
+          if (finMarker == false && mostrarMarcador == true)
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: Container(
+                width: double.infinity,
+                height: 60,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(30),
+                      topRight: Radius.circular(30)),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.only(
+                      left: 25, right: 25, top: 10, bottom: 10),
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.black,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      minimumSize: const Size(double.infinity, 50),
+                    ),
+                    child: const Text('Marcar Inicio'),
+                    onPressed: () {
+                      showModalBottomSheet(
+                          context: context,
+                          builder: (BuildContext context) {
+                            return Container(
+                              decoration: const BoxDecoration(
+                                color: Colors.white,
+                              ),
+                              height: 140,
+                              child: Align(
+                                alignment: Alignment.topCenter,
+                                child: Column(
+                                  children: [
+                                    Padding(
+                                      padding: const EdgeInsets.all(8.0),
+                                      child: ElevatedButton(
+                                        onPressed: () {
+                                          mostrarMarcador = false;
+                                          setState(() {});
+                                          Navigator.of(context).pop();
+                                        },
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.white,
+                                          foregroundColor: Colors.black,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(10),
+                                          ),
+                                          minimumSize:
+                                              const Size(double.infinity, 50),
+                                        ),
+                                        child: const Text('Marcar en el mapa'),
+                                      ),
+                                    ),
+                                    Padding(
+                                      padding: const EdgeInsets.all(8.0),
+                                      child: ElevatedButton(
+                                          onPressed: () {
+                                            inicioLatitude =
+                                                currentLocation!.latitude!;
+                                            inicioLongitude = currentLocation!
+                                                .longitude!; //currentLocation!.longitude!;
+                                            mostrarMarcador = true;
+                                            miUbicacion = true;
+                                            bandera = false;
+                                            addMarker(LatLng(
+                                              currentLocation!.latitude!,
+                                              currentLocation!.longitude!,
+                                            ));
+                                            finMarker = true;
+                                            Navigator.of(context).pop();
+                                          },
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.white,
+                                            foregroundColor: Colors.black,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                            ),
+                                            minimumSize:
+                                                const Size(double.infinity, 50),
+                                          ),
+                                          child:
+                                              const Text("Desde mi ubicación")),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          });
+                    },
+                  ),
+                ),
+              ),
+            ),
+          if (mostrarMarcador == false)
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: Container(
+                width: double.infinity,
+                height: 130,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(30),
+                      topRight: Radius.circular(30)),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.only(
+                      left: 25, right: 25, top: 10, bottom: 10),
+                  child: Column(
+                    children: [
+                      ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: Colors.black,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            minimumSize: const Size(double.infinity, 50),
+                          ),
+                          child: const Text('Aceptar'),
+                          onPressed: () {
+                            _completer.future
+                                .then((GoogleMapController controller) {
+                              controller
+                                  .getVisibleRegion()
+                                  .then((LatLngBounds bounds) {
+                                final LatLng centerLatLng = LatLng(
+                                  (bounds.northeast.latitude +
+                                          bounds.southwest.latitude) /
+                                      2,
+                                  (bounds.northeast.longitude +
+                                          bounds.southwest.longitude) /
+                                      2,
+                                );
+                                inicioLatitude = centerLatLng.latitude;
+                                inicioLongitude = centerLatLng.longitude;
+                                dosPuntos = false;
+                                mostrarMarcador = false;
+                                bandera = false;
+                                finMarker = true;
+                                addMarker(centerLatLng);
+                              });
+                            });
+                          }),
+                      const SizedBox(
+                        height: 10,
+                      ),
+                      ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            minimumSize: const Size(double.infinity, 50),
+                          ),
+                          child: const Text('Cancelar'),
+                          onPressed: () {
+                            mostrarMarcador = true;
+                            setState(() {});
+                          }),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          if (mostrarMarcador == false)
             Center(
-              heightFactor: 11.5,
               child: Opacity(
                 opacity: markers.isEmpty ? 1.0 : 0.0,
                 child: Image.asset(
@@ -598,48 +560,21 @@ class _HomeState extends State<Home> {
                 ),
               ),
             ),
-          Container(
-            margin: const EdgeInsets.only(top: 10),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                FloatingActionButton(
-                  heroTag: 'add_location',
-                  onPressed: () {
-                    _completer.future.then((GoogleMapController controller) {
-                      controller.getVisibleRegion().then((LatLngBounds bounds) {
-                        final LatLng centerLatLng = LatLng(
-                          (bounds.northeast.latitude +
-                                  bounds.southwest.latitude) /
-                              2,
-                          (bounds.northeast.longitude +
-                                  bounds.southwest.longitude) /
-                              2,
-                        );
-                        if (markers.isEmpty) {
-                          inicioLatitude = centerLatLng.latitude;
-                          inicioLongitude = centerLatLng.longitude;
-                          dosPuntos = false;
-                          mostrarMarcador = false;
-                          bandera = false;
-                          /* addMarker(centerLatLng); */
-                          ComponentsGoogleMaps().addMarker(
-                              centerLatLng,
-                              bandera,
-                              miUbicacion,
-                              dosPuntos,
-                              mostrarMarcador,
-                              markers,
-                              currentLocation!,
-                              _mapController,
-                              polylineCoordinates,
-                              inicioLatitude,
-                              inicioLongitude,
-                              totalDistance);
-                          finMarker = true;
-                          setState(() {});
-                        } else {
+          if (finMarker == true)
+            Container(
+              margin: const EdgeInsets.only(top: 100, right: 10),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  FloatingActionButton(
+                    heroTag: 'add_location',
+                    backgroundColor: Colors.red,
+                    onPressed: () {
+                      _completer.future.then((GoogleMapController controller) {
+                        controller
+                            .getVisibleRegion()
+                            .then((LatLngBounds bounds) {
                           if (dosPuntos == false) {
                             miUbicacion = false;
                             finMarker = false;
@@ -652,57 +587,122 @@ class _HomeState extends State<Home> {
                             dosPuntos = false;
                             finMarker = false;
                           }
-                        }
+                        });
                       });
-                    });
-                  },
-                  child: markers.isEmpty
-                      ? const Icon(Icons.add_location)
-                      : const Icon(Icons.delete),
-                ),
-                const SizedBox(width: 10),
-                FloatingActionButton(
-                  heroTag: 'gps_fixed',
-                  onPressed: () async {
-                    final GoogleMapController controller = await _mapController;
-                    controller.animateCamera(
-                      CameraUpdate.newCameraPosition(
-                        CameraPosition(
-                          target: LatLng(
-                            currentLocation!.latitude!,
-                            currentLocation!.longitude!,
-                          ),
-                          zoom: 18,
-                        ),
-                      ),
-                    );
-                  },
-                  child: const Icon(Icons.gps_fixed),
-                ),
-                const SizedBox(width: 10),
-                FloatingActionButton(
-                  heroTag: 'location_searching',
-                  onPressed: () async {
-                    final GoogleMapController controller = await _mapController;
-                    controller.animateCamera(
-                      CameraUpdate.newCameraPosition(
-                        CameraPosition(
-                          target: LatLng(
-                            currentLocation!.latitude!,
-                            currentLocation!.longitude!,
-                          ),
-                          zoom: 13.5,
-                        ),
-                      ),
-                    );
-                  },
-                  child: const Icon(Icons.location_searching),
-                ),
-              ],
+                    },
+                    child: const Icon(Icons.delete, color: Colors.white),
+                  ),
+                ],
+              ),
             ),
-          ),
+          buildFloatingSearchBar(context),
         ],
       ),
+    );
+  }
+
+  final GlobalKey<FloatingSearchBarState> _searchBarKey =
+      GlobalKey<FloatingSearchBarState>();
+
+  Widget buildFloatingSearchBar(BuildContext context) {
+    final isPortrait =
+        MediaQuery.of(context).orientation == Orientation.portrait;
+
+    return FloatingSearchBar(
+      key: _searchBarKey,
+      hint: 'Buscar lugar',
+      scrollPadding: const EdgeInsets.only(top: 16, bottom: 56),
+      transitionDuration: const Duration(milliseconds: 500),
+      transitionCurve: Curves.easeInOut,
+      physics: const BouncingScrollPhysics(),
+      axisAlignment: isPortrait ? 0.0 : -1.0,
+      openAxisAlignment: 0.0,
+      width: isPortrait ? 600 : 500,
+      debounceDelay: const Duration(milliseconds: 400),
+      borderRadius: BorderRadius.circular(30),
+      onQueryChanged: (query) {
+        // Call your model, bloc, controller here.
+        search(query);
+      },
+      transition: CircularFloatingSearchBarTransition(),
+      actions: [
+        FloatingSearchBarAction(
+          showIfOpened: false,
+          child: CircularButton(
+            icon: const Icon(Icons.place),
+            onPressed: () {},
+          ),
+        ),
+        FloatingSearchBarAction.searchToClear(
+          showIfClosed: false,
+        ),
+      ],
+      builder: (context, transition) {
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: Material(
+            color: Colors.white,
+            elevation: 4.0,
+            child: ListView.builder(
+              shrinkWrap: true, // Ajusta el tamaño al contenido
+              itemCount: datosDescription.length,
+              padding: EdgeInsets.zero,
+              itemBuilder: (context, index) {
+                final itemDescrip = datosDescription[index];
+                final itemGroup = datosGroup[index];
+                return ListTile(
+                  title: Text(itemDescrip),
+                  subtitle: Text(itemGroup), // Aquí puedes poner el grupo
+                  iconColor: Colors.blue,
+                  dense: true,
+                  /* icon ojo */
+                  leading: const Icon(
+                    Icons.location_on,
+                  ),
+                  onTap: () {
+                    if (markers.isNotEmpty) {
+                      final data = jsonData.firstWhere(
+                        (element) => element['description'] == itemDescrip,
+                        orElse: () => {
+                          'description': '',
+                          'latitude': '0',
+                          'longitude': '0',
+                        },
+                      );
+                      final position = LatLng(
+                        double.parse(data['latitude'].toString()),
+                        double.parse(data['longitude'].toString()),
+                      );
+                      // Aquí puedes hacer lo que necesites con las coordenadas
+                      dosPuntos = true;
+                      miUbicacion = false;
+                      description = data['description'].toString();
+                      group = data['group'].toString();
+                      initials = data['initials'].toString();
+                      // Por ejemplo, agregar un marcador
+                      addMarker(position);
+                      // Cerrar el buscador y volver a la pantalla principal
+                      setState(() {
+                        search('');
+                        _searchController.clear();
+                        /* Ocultar teclado */
+                        FocusScope.of(context).unfocus();
+                      });
+                      _searchBarKey.currentState?.close();
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('No hay marcadores'),
+                        ),
+                      );
+                    }
+                  },
+                );
+              },
+            ),
+          ),
+        );
+      },
     );
   }
 }

@@ -42,6 +42,7 @@ dependencies:
   after_layout: ^1.2.0
   image: ^4.0.17
   path_provider: ^2.0.15
+  material_floating_search_bar_2: ^0.4.2
 
 dev_dependencies:
   flutter_test:
