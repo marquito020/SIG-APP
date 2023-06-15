@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:image/image.dart' as img;
 import 'package:location/location.dart';
@@ -12,9 +13,9 @@ import 'package:flutter_polyline_points/flutter_polyline_points.dart';
 import 'package:material_floating_search_bar_2/material_floating_search_bar_2.dart';
 import 'package:sig_grupL/utils/api_google.dart';
 
-import '../components/google_maps.dart';
 import '../controllers/apiController.dart';
 import '../utils/maps_style.dart';
+import 'package:geocoder2/geocoder2.dart';
 
 class Home extends StatefulWidget {
   const Home({Key? key}) : super(key: key);
@@ -41,6 +42,11 @@ class _HomeState extends State<Home> {
   String group = '';
   String initials = '';
   double totalDistance = 0.0;
+  String address = '';
+  LatLng? iniLocation;
+  bool isLoading = false;
+  String tiempoCaminando = '';
+  String tiempoAuto = '';
 
   Future<GoogleMapController> get _mapController async {
     return await _completer.future;
@@ -156,11 +162,54 @@ class _HomeState extends State<Home> {
       }
 
       calculatePolylineDistance();
+      calculateTime();
+
+      // Obtén el GoogleMapController
+      GoogleMapController controller = await _mapController;
+
+      // Crea una lista de LatLng que contiene todos los puntos del polyline
+      List<LatLng> allPoints = [
+        LatLng(inicioLatitude, inicioLongitude),
+        ...polylineCoordinates,
+        LatLng(position.latitude, position.longitude),
+      ];
+
+      // Calcula los límites del polyline
+      LatLngBounds bounds = boundsFromLatLngList(allPoints);
+
+      // Ajusta la cámara para mostrar los límites del polyline en toda la pantalla
+      controller.animateCamera(
+        CameraUpdate.newLatLngBounds(bounds, 90.0),
+      );
     }
 
     bandera = true;
 
     setState(() {});
+  }
+
+  LatLngBounds boundsFromLatLngList(List<LatLng> list) {
+    double? minLat, maxLat, minLng, maxLng;
+
+    for (final latLng in list) {
+      if (minLat == null || latLng.latitude < minLat) {
+        minLat = latLng.latitude;
+      }
+      if (maxLat == null || latLng.latitude > maxLat) {
+        maxLat = latLng.latitude;
+      }
+      if (minLng == null || latLng.longitude < minLng) {
+        minLng = latLng.longitude;
+      }
+      if (maxLng == null || latLng.longitude > maxLng) {
+        maxLng = latLng.longitude;
+      }
+    }
+
+    return LatLngBounds(
+      northeast: LatLng(maxLat!, maxLng!),
+      southwest: LatLng(minLat!, minLng!),
+    );
   }
 
   void calculatePolylineDistance() {
@@ -198,6 +247,39 @@ class _HomeState extends State<Home> {
 
     final double distance = earthRadius * c;
     return distance;
+  }
+
+  void calculateTime() {
+    // Velocidad promedio a pie en km/h
+    const double walkingSpeed = 5.0;
+
+    // Velocidad promedio en automóvil en km/h
+    const double carSpeed = 60.0;
+
+    // Calcula el tiempo estimado en minutos
+    double walkingTime = (totalDistance / walkingSpeed) * 60;
+    double carTime = (totalDistance / carSpeed) * 60;
+
+    // Convierte el tiempo a formato horas:minutos
+    String walkingTimeFormatted = formatTime(walkingTime);
+    String carTimeFormatted = formatTime(carTime);
+
+    if (kDebugMode) {
+      print('Tiempo estimado a pie: $walkingTimeFormatted');
+      print('Tiempo estimado en automóvil: $carTimeFormatted');
+    }
+    tiempoAuto = carTimeFormatted;
+    tiempoCaminando = walkingTimeFormatted;
+  }
+
+  String formatTime(double time) {
+    int hours = (time / 60).floor();
+    int minutes = (time % 60).round();
+
+    String hoursString = hours.toString().padLeft(2, '0');
+    String minutesString = minutes.toString().padLeft(2, '0');
+
+    return '$hoursString:$minutesString';
   }
 
   void removeMarker(MarkerId markerId) {
@@ -251,6 +333,34 @@ class _HomeState extends State<Home> {
       }
     }
     return group;
+  }
+
+  getAddressFromLatLng() async {
+    try {
+      print("Entro a getAddressFromLatLng()");
+      if (isLoading) {
+        setState(() {});
+      } else {
+        GeoData dataGeo = await Geocoder2.getDataFromCoordinates(
+            latitude: iniLocation!.latitude,
+            longitude: iniLocation!.longitude,
+            googleMapApiKey: apiGoogle);
+        setState(() {
+          isLoading = false;
+          address = dataGeo.address;
+          if (kDebugMode) {
+            print("Dirección: $address");
+          }
+        });
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print("Error: $e");
+      }
+      setState(() {
+        isLoading = true;
+      });
+    }
   }
 
   final TextEditingController _searchController = TextEditingController();
@@ -311,6 +421,22 @@ class _HomeState extends State<Home> {
                 mapType: MapType.normal,
                 compassEnabled: false,
                 markers: markers,
+                onCameraMove: (CameraPosition? position) {
+                  if (kDebugMode) {
+                    print("Camera Move");
+                  }
+                  isLoading = false;
+                  iniLocation = position!.target;
+                  isLoading = true;
+                  getAddressFromLatLng();
+                },
+                onCameraIdle: () {
+                  if (kDebugMode) {
+                    print("Camera Idle");
+                  }
+                  isLoading = false;
+                  getAddressFromLatLng();
+                },
                 polylines: {
                   Polyline(
                     polylineId: const PolylineId('polyLine'),
@@ -335,15 +461,6 @@ class _HomeState extends State<Home> {
                           .center, // Centrar los elementos horizontalmente
                       children: [
                         Text(
-                          "Distancia: $totalDistance km",
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black,
-                          ),
-                        ),
-                        Text(
                           "Grupo: $group",
                           textAlign: TextAlign.center,
                           style: const TextStyle(
@@ -363,6 +480,33 @@ class _HomeState extends State<Home> {
                         ),
                         Text(
                           "Descripcion: $description",
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
+                        ),
+                        Text(
+                          "Distancia: $totalDistance km",
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
+                        ),
+                        Text(
+                          "Tiempo en auto: $tiempoAuto hr",
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
+                        ),
+                        Text(
+                          "Tiempo a pie: $tiempoCaminando hr",
                           textAlign: TextAlign.center,
                           style: const TextStyle(
                             fontSize: 14,
@@ -549,17 +693,6 @@ class _HomeState extends State<Home> {
                 ),
               ),
             ),
-          if (mostrarMarcador == false)
-            Center(
-              child: Opacity(
-                opacity: markers.isEmpty ? 1.0 : 0.0,
-                child: Image.asset(
-                  'assets/icons/mark_start.png',
-                  width: 50,
-                  height: 50,
-                ),
-              ),
-            ),
           if (finMarker == true)
             Container(
               margin: const EdgeInsets.only(top: 100, right: 10),
@@ -593,6 +726,48 @@ class _HomeState extends State<Home> {
                     child: const Icon(Icons.delete, color: Colors.white),
                   ),
                 ],
+              ),
+            ),
+          if (mostrarMarcador == false)
+            Align(
+              alignment: Alignment.center,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 38),
+                child: Opacity(
+                  opacity: markers.isEmpty ? 1.0 : 0.0,
+                  child: Image.asset(
+                    'assets/icons/mark_start.png',
+                    width: 50,
+                    height: 50,
+                  ),
+                ),
+              ),
+            ),
+          if (mostrarMarcador == false)
+            Align(
+              alignment: Alignment.center,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 110),
+                child: Container(
+                  color: isLoading ? Colors.transparent : Colors.white,
+                  child: isLoading
+                      ? const SizedBox(
+                          width: 30,
+                          height: 30,
+                          child: SpinKitFadingCircle(
+                            color: Colors.green,
+                            size: 30,
+                          ),
+                        )
+                      : Text(
+                          address,
+                          style: const TextStyle(
+                            color: Colors.black,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                ),
               ),
             ),
           buildFloatingSearchBar(context),
